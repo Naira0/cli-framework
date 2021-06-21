@@ -15,7 +15,7 @@ namespace cli
 		INT,
 		STRING
 	};
-
+	
 	struct FlagData
 	{
 		bool*			 boolBuff;

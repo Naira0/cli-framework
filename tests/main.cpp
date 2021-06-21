@@ -13,18 +13,6 @@ void echoFn(cli::Args args)
 	std::cout << '\n';
 }
 
-template<typename T>
-T shift(std::vector<T>& vec)
-{
-	assert(vec.size() > 0 && "Vector must not be empty");
-
-	T value = vec[0];
-
-	vec.erase(vec.begin());
-
-	return value;
-}
-
 int main(int argc, const char* argv[])
 {
 	cli::Flags flags(argc, argv, true);
@@ -72,7 +60,7 @@ int main(int argc, const char* argv[])
 		{"echo", echo},
 		{"help", help}
 	};
-
+	
 	std::vector<std::string> args = flags.getArgs();
 
 	if (args.size() == 0)
