@@ -1,2 +1,4 @@
 # cli-framework
-A flag parser, command hanlder and an ANSI escape code wrapper into one libary
+A flag parser, command handler and an ANSI escape code wrapper into one library
+
+documentation and guide coming soon 
