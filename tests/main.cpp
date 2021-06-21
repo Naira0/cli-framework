@@ -5,19 +5,15 @@
 #include <conio.h>
 #include <cassert>
 
-void echoFn(cli::Args args)
-{
-	for (const std::string& arg : args)
-		std::cout << arg << ' ';
-
-	std::cout << '\n';
-}
 
 int main(int argc, const char* argv[])
 {
+	// ==================================================
+	// a simple test for the flat parser and command handler that intergrates with each other
+
 	cli::Flags flags(argc, argv, true);
 
-	bool x{};
+	bool x = false;
 	int i = 10;
 	std::string str = "nope";
 
@@ -27,38 +23,27 @@ int main(int argc, const char* argv[])
 		.set(str, "s", "this is a string")
 		.parse();
 
-	/*std::cout << "i: " << i << '\n';
+	std::cout << "i: " << i << '\n';
 	std::cout << "x: " << x << '\n';
-	std::cout << "s: " << str << '\n';*/
-
-	cli::CommandHandler handler{};
+	std::cout << "s: " << str << '\n';
 
 	cli::Command echo =
 	{
 		{"e", "repeat"},
 		"Repeats the arguments back",
 		5000,
-		echoFn
-	};
-
-	cli::Command help =
-	{
-		{"h"},
-		"Shows command info",
-		1000,
-		[handler](cli::Args args)
+		[](cli::Args args)
 		{
-			for (auto& [k, v] : handler.cmds)
-			{
-				std::cout << k << ": " << v.description << '\n';
-			}
+			for (const std::string& arg : args)
+				std::cout << arg << ' ';
+
+			std::cout << '\n';
 		}
 	};
-
-	handler.cmds = 
+	
+	cli::CommandHandler handler =
 	{
-		{"echo", echo},
-		{"help", help}
+		{"echo", echo}
 	};
 	
 	std::vector<std::string> args = flags.getArgs();
@@ -75,6 +60,9 @@ int main(int argc, const char* argv[])
 	if (!run)
 		std::cout << "Command failed!";
 
+	// ==================================================
+	// basic test to show off the formating 
+	
 	/*std::cout << cli::color("rgb go brrr", { "102", "255", "153" }) << '\n';
 	std::cout << cli::double_underline("double underline me") << '\n';
 	std::cout << cli::underline("single underline me") << '\n';
@@ -85,14 +73,16 @@ int main(int argc, const char* argv[])
 
 	using namespace std::chrono;
 
-	/*
-	std::cout << cli::hide_cursor();
+	// ==================================================
+	// a dynamic number counter that changes colors in a 255 bit range
+
+	/*std::cout << cli::hide_cursor();
 
 	int i = 0;
 	while (true)
 	{
 		if(i != 0)
-			std::cout << cli::cursorUp() << cli::delete_cursor();
+			std::cout << cli::cursorUp() << cli::eraseLine();
 
 		std::cout << cli::color(std::to_string(i), i);
 		i++;
@@ -100,9 +90,11 @@ int main(int argc, const char* argv[])
 		std::this_thread::sleep_for(100ms);
 
 		std::cout << cli::cursorDown();
-	}
+	}*/
 
-	std::cout << cli::show_cursor();*/
+	// ==================================================
+	// simple loading message with animated dots
+	// the implemantation is pretty bad but its a decent enough example
 
 	/*std::cout << cli::hide_cursor();
 	std::cout << cli::save_cursor();
@@ -121,13 +113,16 @@ int main(int argc, const char* argv[])
 			std::this_thread::sleep_for(500ms);
 		}
 		
-		std::cout << cli::eraseline(2);
+		std::cout << cli::eraseLine(2);
 	}
 	
 	std::cout << cli::show_cursor();*/
 	
 
-	/*std::string symbol = cli::color("[o|o]", cli::colors::red);
+	// ==================================================
+	// makes allows you to move around the symbol with the numb pad arrow keys
+
+	/*std::string symbol = cli::color("=", cli::colors::red);
 
 	std::cout << symbol;
 
@@ -163,6 +158,4 @@ int main(int argc, const char* argv[])
 				break;
 		}
 	}*/
-	
-	
 }  
