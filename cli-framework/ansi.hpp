@@ -46,7 +46,7 @@ namespace cli
 	};
 
 	// sets the text color
-	inline std::string color(const std::string& txt, enum class colors c, enum class bg_colors bg = bg_colors::black)
+	inline std::string color(const std::string& txt, colors c, bg_colors bg = bg_colors::black)
 	{
 		std::string cStr  = std::to_string((int)c);
 		std::string bgStr = std::to_string((int)bg);
@@ -55,14 +55,14 @@ namespace cli
 	}
 
 	// sets the text background color
-	inline std::string color(const std::string& txt, enum class bg_colors c)
+	inline std::string color(const std::string& txt, bg_colors c)
 	{
 		std::string cStr = std::to_string((int)c);
 		return "\x1B[" + cStr + "m" + txt + "\033[0m";
 	}
 
 	// sets the text color within a 255bit color range
-	inline std::string color(const std::string& txt, int c, enum class bg_colors bg = bg_colors::black)
+	inline std::string color(const std::string& txt, int c, bg_colors bg = bg_colors::black)
 	{
 		std::string cStr = std::to_string(c);
 		std::string bgStr = std::to_string((int)bg);

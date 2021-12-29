@@ -1,96 +1,116 @@
 #pragma once
 
+#include <string_view>
 #include <string>
 #include <map>
 #include <vector>
 #include <chrono>
 #include <initializer_list>
 #include <functional>
+#include <ostream>
 
 namespace cli
 {
-	using Args = std::vector<std::string>;
-
-	struct Command
-	{
-		std::vector<std::string> alias;
-		std::string description;
-		size_t cooldown;
-		std::function<void(std::vector<std::string>)> exec;
-	};
-
-	struct Cooldown
-	{
-		std::chrono::milliseconds amount;
-		std::chrono::time_point<std::chrono::system_clock> time;
-	};
-
 	class CommandHandler
-	{
-	public:
-		std::map<std::string, Command> cmds;
+    {
+    public:
 
-		CommandHandler(std::initializer_list<std::pair<const std::string, Command>> commands)
-			: cmds(commands) {}
+        using Args = std::vector<std::string>;
+        using ExecFN = std::function<void(Args)>;
 
-		CommandHandler() = default;
+        struct Command
+        {
+            std::vector<std::string> alias;
+            std::string_view description;
+            size_t cooldown;
+            ExecFN exec;
+        };
 
-		bool run(std::string name, std::vector<std::string> args)
-		{
-			std::string alias = findbyAlias(name);
-			std::string parsedName = alias.empty() ? name : alias ;
+        struct Cooldown
+        {
+            std::chrono::milliseconds amount;
+            std::chrono::time_point<std::chrono::system_clock> time;
+        };
 
-			if (!cmds.contains(parsedName))
-				return false;
+        std::map<std::string_view, Command> cmds;
 
-			Command& cmd = cmds[parsedName];
+        CommandHandler(std::initializer_list<std::pair<const std::string_view, Command>> commands)
+                : cmds(commands)
+        {}
 
-			if (!cooldowns.contains(parsedName))
-			{
-				Cooldown data =
-				{
-					std::chrono::milliseconds(cmd.cooldown),
-					std::chrono::system_clock::now()
-				};
+        CommandHandler() = default;
 
-				cooldowns[parsedName] = data;
-			}
-			else {
+        bool run(std::string_view name, Args& args)
+        {
 
-				using namespace std::chrono;
+            std::string_view cmd_name;
 
-				auto& cooldown = cooldowns[parsedName];
-				auto now = system_clock::now();
-				auto diff = duration_cast<milliseconds>(now - cooldown.time);
+            if (cmds.contains(name))
+                cmd_name = name;
+            else
+            {
+                std::string_view alias = find_by_alias(name);
 
-				if (diff <= cooldown.amount)
-					return false;
-				else
-					cooldowns.erase(parsedName);
-			}
+                if (!cmds.contains(alias))
+                    return false;
 
-			cmd.exec(args);
+                cmd_name = alias;
+            }
 
-			return true;
-		}
+            Command &cmd = cmds[cmd_name];
 
-		void help()
+            if(!manage_cooldown(cmd_name, cmd))
+                return false;
+
+            cmd.exec(args);
+
+            return true;
+        }
+
+        void help(std::ostream &os)
+        {
+            for (auto&[k, v]: cmds)
+            {
+                os << k << ": " << v.description << '\n';
+            }
+        }
+
+    private:
+        std::map<std::string_view, Cooldown> cooldowns;
+
+        bool manage_cooldown(std::string_view cmd_name, Command& cmd)
+        {
+            using namespace std::chrono;
+
+            if (!cooldowns.contains(cmd_name))
+            {
+                cooldowns[cmd_name] = Cooldown
+                {
+                    .amount =  milliseconds(cmd.cooldown),
+                    .time   = system_clock::now()
+                };
+            }
+            else
+            {
+                auto &cooldown  = cooldowns[cmd_name];
+                auto now        = system_clock::now();
+                auto diff       = duration_cast<milliseconds>(now - cooldown.time);
+
+                if (diff <= cooldown.amount)
+                    return false;
+                else
+                    cooldowns.erase(cmd_name);
+            }
+
+            return true;
+        }
+
+		std::string_view find_by_alias(std::string_view alias)
 		{
 			for (auto& [k, v] : cmds)
 			{
-				std::cout << k << ": " << v.description << '\n';
-			}
-		}
-
-	private:
-		std::map<std::string, Cooldown> cooldowns;
-
-		std::string findbyAlias(std::string& alias)
-		{
-			for (auto& [k, v] : cmds)
-			{
-				if (v.alias.size() == 0)
-					return "";
+				if (v.alias.empty())
+					return {};
 
 				for (auto &a : v.alias)
 				{
@@ -99,7 +119,7 @@ namespace cli
 				}
 			}
 
-			return "";
+			return {};
 		}
 	};
 }

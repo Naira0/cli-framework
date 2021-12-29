@@ -3,66 +3,64 @@
 #include <vector>
 #include <string>
 #include <map>
-#include <iostream>
-#include <sstream>
-#include <array>
+#include <ostream>
+#include <string_view>
 
 namespace cli
 {
-	enum class Type
-	{
-		BOOL,
-		INT,
-		BIG_INT,
-		STRING,
-		FLOAT
-	};
-
-	struct FlagData
-	{
-		void*		     buff;
-		enum class Type	 type;
-		std::string		 description;
-	};
-
 	class Flags
 	{
 	public:
-		Flags(int count, const char* argv[], bool auto_help = false, const std::string& help_keyword = "help") 
-			: 
-				ah(auto_help),
-				argc(count),
-				argv(argv)
-		{
-			hkw = "-";
-			hkw += help_keyword;
-		}
 
-		Flags& set(bool& buff, const std::string& name, const std::string& description)
+        enum class Type
+        {
+            BOOL,
+            INT,
+            BIG_INT,
+            STRING,
+            FLOAT
+        };
+
+        struct FlagData
+        {
+            void*		buff;
+            Type	    type;
+            const char*	description;
+        };
+
+		Flags(int count, const char* argv[], bool auto_help = false, const char* help_keyword = "help")
+			:
+                auto_help(auto_help),
+                argc(count),
+                argv(argv),
+                help_keyword(std::move(std::string("-")+help_keyword))
+		{}
+
+		Flags& set(bool& buff, const std::string& name, const char* description)
 		{
 			add_flag(Type::BOOL, buff, name, description);
 			return *this;
 		}
 
-		Flags& set(int32_t& buff, const std::string& name, const std::string& description)
+		Flags& set(int32_t& buff, const std::string& name, const char* description)
 		{
 			add_flag(Type::INT, buff, name, description);
 			return *this;
 		}
 
-		Flags& set(int64_t& buff, const std::string& name, const std::string& description)
+		Flags& set(int64_t& buff, const std::string& name, const char* description)
 		{
 			add_flag(Type::BIG_INT, buff, name, description);
 			return *this;
 		}
 
-		Flags& set(std::string& buff, const std::string& name, const std::string& description)
+		Flags& set(std::string& buff, const std::string& name, const char* description)
 		{
 			add_flag(Type::STRING, buff, name, description);
 			return *this;
 		}
 		
-		Flags& set(float& buff, const std::string& name, const std::string& description)
+		Flags& set(float& buff, const std::string& name, const char* description)
 		{
 			add_flag(Type::FLOAT, buff, name, description);
 			return *this;
@@ -70,147 +68,123 @@ namespace cli
 
 		void parse()
 		{
-			bool skipNext = false;
+            clean_args.reserve(argc);
+
+			bool skip_next = false;
 
 			for (int i = 1; i < argc; i++)
 			{
-				if (skipNext)
+				if (skip_next)
 				{
-					skipNext = false;
+                    skip_next = false;
 					continue;
 				}
 
-				std::pair<std::string, std::string> values;
+				auto [p_flag, p_value] = get_equal(argv[i]);
 
-				bool eqSign = has_equal(argv[i]);
+                bool has_equal = !p_flag.empty();
 
-				if (eqSign)
-					values = get_equal(argv[i]);
+				std::string flag_name = has_equal ? std::move(p_flag) : argv[i];
 
-				std::string flagName = eqSign ? values.first : argv[i];
-
-				bool isFlag = flags.contains(flagName);
+				bool is_flag = flags.contains(flag_name);
 
 				// if the flag is the help keyword or if auto help is enabled and its an incorrect flag it will trigger the help message
-				if ((flagName == hkw) || ah && argv[i][0] == '-' && !isFlag)
-					return help();
+				if ((flag_name == help_keyword) || (auto_help && argv[i][0] == '-' && !is_flag))
+					return help(std::cout);
 
-				if (!isFlag)
+				if (!is_flag)
 				{
-					clean_args.push_back(argv[i]);
+					clean_args.emplace_back(argv[i]);
 					continue;
 				}
 
-				FlagData flag = flags[flagName];
+				FlagData flag = flags[flag_name];
 
-				parse_type(flag.type, flag, values.second, i, eqSign, skipNext);
+                if(flag.type == Type::BOOL)
+                {
+                    *(bool*)flag.buff = true;
+                    continue;
+                }
+
+                std::string value;
+
+                if(has_equal)
+                    value = std::move(p_value);
+                else
+                {
+                    if(i+1 == argc)
+                        return;
+                    value = argv[i+1];
+                    skip_next = true;
+                }
+
+				parse_type(flag.type, flag.buff, value);
 			}
 		}
 
-		void help()
-		{
-			std::cout << "\nUsage:\n -flag=value, -flag value, -flag\n\n";
+        // outputs a help message to your ostream of choice
+        void help(std::ostream& os)
+        {
+            os << "\nUsage:\n -flag=value, -flag value, -flag\n\n";
 
-			for (const auto& [name, data] : flags)
-			{
+            for (const auto& [name, data] : flags)
+            {
+                os
+                    << name
+                    << " | "
+                    << enum_to_str(data.type)
+                    << " | " << data.description
+                    << '\n';
+            }
+        }
 
-				std::cout << name << ' ' << enum_to_str(data.type) << " | " << data.description << '\n';
-			}
-		}
-
-		std::string help_str(bool usage = false)
-		{
-			std::stringstream ss;
-
-			if(usage)
-				std::cout << "\nUsage:\n -flag=value, -flag value, -flag\n\n";
-
-			for (const auto& [name, data] : flags)
-			{
-				ss << name << ' ' << enum_to_str(data.type) << " | " << data.description << '\n';
-			}
-
-			return ss.str();
-		}
-
-		// gets the command line args without the flags.
-		// if parse has not been called before this function the flags wont be removed
-		std::vector<std::string> get_args() { return clean_args; }
+        std::vector<std::string> clean_args{};
+        std::map<std::string, FlagData> flags{};
 
 	private:
-		std::vector<std::string> clean_args{};
-		std::map<std::string, FlagData> flags{};
 		int argc;
 		const char** argv;
-		bool ah;
-		std::string hkw;
+		bool auto_help;
+		std::string help_keyword;
 
-		inline std::string enum_to_str(enum class Type t)
+		inline std::string_view enum_to_str(Type t)
 		{
-			std::string type;
+            std::string_view type;
 
 			switch (t)
 			{
-			case Type::BOOL:
-				type = "bool";
-				break;
-			case Type::BIG_INT:
-				type = "Big int";
-				break;
-			case Type::INT:
-				type = "number";
-				break;
-			case Type::STRING:
-				type = "string";
-				break;
-			case Type::FLOAT:
-				type = "floating point number";
-				break;
+                case Type::BOOL:    type = "bool";      break;
+                case Type::BIG_INT: type = "Big int";   break;
+                case Type::INT:     type = "int";	    break;
+                case Type::STRING:  type = "string";	break;
+                case Type::FLOAT:   type = "float";     break;
 			}
 
 			return type;
 		}
 
-		inline bool has_equal(const std::string& str)
-		{
-			if (str[0] == '-' && str.find("=") != std::string::npos)
-				return true;
-
-			return false;
-		}
-
-		// the first value will be the flag name including the slash
-		// the second value will be the value of the flag
-		// this function shouldnt be call unless you know the flag has an equal sign
-		// check with the previous function
 		std::pair<std::string, std::string> get_equal(const std::string& str)
 		{
-			std::pair<std::string, std::string> values;
-			std::string store;
-			
-			for (const char c : str)
-			{
-				if (flags.contains(store))
-				{
-					values.first = store;
-					store.clear();
-					continue;
-				}
+            if(str[0] != '-')
+                return {};
 
-				if (c == '=')
-					continue;
+            size_t i = str.find('=');
 
-				store += c;
-			}
+            if(i == std::string::npos)
+                return {};
 
-			values.second = store;
+			std::pair<std::string, std::string> values
+            {
+                str.substr(0, i),
+                str.substr(i+1)
+            };
 
 			return values;
 		}
 
-		// this function is templeted because only functions with allowed flag types will be calling it 
+		// this function is templated because only functions with allowed flag types will be calling it
 		template<typename T>
-		inline void add_flag(enum class Type t, T& buff, const std::string& name, const std::string& description)
+		inline void add_flag(Type t, T& buff, const std::string& name, const char* description)
 		{
 			FlagData data
 			{
@@ -226,30 +200,19 @@ namespace cli
 		}
 
 		// parses a single type to the appropriate value
-		void parse_type(enum class Type t, FlagData& flag, std::string& value, int i, bool eq, bool& skip_next)
+		inline void parse_type(Type t, void* buff, std::string& value)
 		{
-
-			if (t == Type::BOOL)
-			{
-				*(bool*)flag.buff = true;
-				return;
-			}
-
-			std::string raw = eq ? value : argv[i + 1];
-
-			if (!eq)
-				skip_next = true;
-
-			try {
+			try
+            {
 				switch (t)
 				{
-				case Type::INT:		*(int32_t*)flag.buff     = std::stol(raw);		break;
-				case Type::STRING:	*(std::string*)flag.buff = raw;					break;
-				case Type::FLOAT:   *(float*)flag.buff		 = std::stof(raw);		break;
-				case Type::BIG_INT: *(int64_t*)flag.buff	 = std::stoll(raw);		break;
+                    case Type::INT:		*(int32_t*)buff         = std::stol(value);		    break;
+                    case Type::STRING:	*(std::string*)buff     = value;					break;
+                    case Type::FLOAT:   *(float*)buff		    = std::stof(value);		    break;
+                    case Type::BIG_INT: *(int64_t*)buff	        = std::stoll(value);		break;
 				}
 			}
-			catch (std::exception e)
+			catch (...)
 			{}
 		}
 	};
