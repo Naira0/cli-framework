@@ -7,74 +7,97 @@ flags can be used like `-flag=value | -flag value | -flag`
 ```c++
 int main(int argc, const char* argv[])
 {
-  // defines the flag class
-  // the third in initializer is an autohelp that will trigger when a user enters an incorrect flag
-	cli::Flags flags(argc, argv, true);
 
-  // our buffer vairables
-  // the values wont be changed if no flag is found acting as a default value system
-	bool x = false;
-	int i = 10;
-	std::string str = "nope";
+	// inits the flags. // the third (optional) param specifies if auto help should be enabled.
+	// the fourth specifies the reserved help flag.
+	cli::Flags flags(argc, argv, true, "h");
 
-  // sets the buffer flag name and flag description and then calls parse to parse the flags
-	flags
-		.set(x, "x", "does something probably")
-		.set(i, "i", "this is an int")
-		.set(str, "s", "this is a string")
-		.parse();
+	// flag buffers. if the flag isnt found or a conversion error happens then the value wont be changed.
+	// this acts as a default value system.
+    bool x				= false;
+    int i				= 10;
+    float f				= 5.10;
+    int64_t big			= 100000000000000;
+    std::string str 	= "nope";
 
-  // displays the flags called
-	std::cout << "i: " << i << '\n';
-	std::cout << "x: " << x << '\n';
-	std::cout << "s: " << str << '\n';
-  
-  return 0;
+	// sets the flags and parses them
+    flags
+            .set(x,   "x", "does something probably")
+            .set(i,   "i", "this is an int")
+            .set(big, "big", "a very large int flag")
+            .set(str, "s", "this is a string")
+            .set(f,   "f", "this is a floating point number")
+            .parse();
+
+	// displays flags
+    std::cout 
+		<< "Flags:\n"
+		<< "x: "   << x   << '\n'
+		<< "i: "   << i   << '\n'
+		<< "s: "   << str << '\n'
+		<< "F: "   << f   << '\n'
+		<< "big: " << big << '\n';
+
+	// displays non flag args
+    std::cout << "Clean args:\n";
+
+	// clean args can be used to get all the non flag args not including the executable name
+    for(const auto& arg : flags.clean_args)
+        std::cout << arg << '\n';
+
+	return 0;
 }
 ```
 
 ## Command usage
 
 ```c++
-// defines a command that echos back the arguments
-cli::Command echo =
-	{
-		{"e", "repeat"}, // the command aliases
-		"Repeats the arguments back", // command description
-		5000, // cooldown in ms 
-		[](cli::Args args) // the command logic implemnted as a lambda but can work as a function ptr as well. cli::Args is just a vector<string> alias
+
+	using namespace cli::CommandHandler;
+
+	// defines a command that echos back the arguments
+     Command echo =
 		{
-			for (const std::string& arg : args)
-				std::cout << arg << ' ';
+			.alias       = {"e", "repeat"}, // the command aliases
+			.description = "Repeats the arguments back", // command description
+			.cooldown    = 5000, // cooldown in ms
+			.exec        = [](Args args) // the command logic implemnted as a lambda but can work as a function ptr as well. cli::Args is just a vector<string> alias
+			{
+				for (const std::string& arg : args)
+					std::cout << arg << ' ';
 
-			std::cout << '\n';
-		}
-	};
-	
-  // initializes the command handler with the command desired commands
-  // first is the command name/id the second is the command struct
-  // you can set new commands like a normal map with handler.cmds["newcmd"] = data;
-	cli::CommandHandler handler =
-	{
-		{"echo", echo}
-	};
-	
-  // gets system arguments into a vector. alternatively you can use Flags::getArgs() instead if you're using this with the flag parser
-	std::vector<std::string> args = cli::vecArgs(argc, argv);
+				std::cout << '\n';
+			}
+		};
 
-	if (args.size() == 0)
-		return 0;
+    // initializes the command handler with the desired commands
+    // first is the command name/id the second is the command struct
+    // you can set new commands like a normal map with handler.cmds["newcmd"] = data;
+    CommandHandler handler =
+		{
+			{"echo", echo}
+		};
 
-	std::string cmdName = args[0];
+    // gets system arguments into a vector. alternatively you can use Flags::clean_args instead if you're using this with the flag parser
+    Args args = cli::vec_args(argc, argv);
 
-	args.erase(args.begin());
+    if (args.empty())
+        return 0;
 
-  // run with cmd name and arguments 
-  // returns false if command failed
-	bool run = handler.run(cmdName, args);
+    std::string_view cmd_name = args[0];
 
-	if (!run)
-		std::cout << "Command failed!";
+	// removes command name from args
+    args.erase(args.begin());
+
+    // result returns a struct containing a command status as well as a command message
+    // the message will always be a nullptr if the command did not run
+    // always check with Result::ok
+    auto result = handler.run(cmd_name, args);
+
+    if (!result.ok)
+        std::cout << "Error running command: " << result.message;
+
+    return 0;
 ```
 
 ## ANSI usage

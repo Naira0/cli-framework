@@ -32,6 +32,12 @@ namespace cli
             std::chrono::time_point<std::chrono::system_clock> time;
         };
 
+        struct Result
+        {
+            const char *message;
+            bool ok;
+        };
+
         std::map<std::string_view, Command> cmds;
 
         CommandHandler(std::initializer_list<std::pair<const std::string_view, Command>> commands)
@@ -40,7 +46,7 @@ namespace cli
 
         CommandHandler() = default;
 
-        bool run(std::string_view name, Args& args)
+        Result run(std::string_view name, Args& args)
         {
 
             std::string_view cmd_name;
@@ -52,7 +58,7 @@ namespace cli
                 std::string_view alias = find_by_alias(name);
 
                 if (!cmds.contains(alias))
-                    return false;
+                    return {"command not found", false};
 
                 cmd_name = alias;
             }
@@ -60,11 +66,11 @@ namespace cli
             Command &cmd = cmds[cmd_name];
 
             if(!manage_cooldown(cmd_name, cmd))
-                return false;
+                return {"command is on cooldown", false};
 
             cmd.exec(args);
 
-            return true;
+            return {nullptr, true};
         }
 
         void help(std::ostream &os)
